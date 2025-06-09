@@ -2,7 +2,7 @@
 
 SecurePay is a secure payment system that combines FIDO2/WebAuthn authentication (e.g., YubiKey) with Stripe payment processing. Users register a security key, authenticate with it, and then make payments via credit card or bank transfer, all in a seamless web interface.
 
-This peoject was just made by me for learning purposes and does not represent a fully functional model of the payment system yet, more versions to be updated.
+This project was just made for learning purposes and does not represent a fully functional model of the payment system yet, more versions to be updated.
 
 ## Features
 

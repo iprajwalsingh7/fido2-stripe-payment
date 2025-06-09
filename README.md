@@ -14,12 +14,12 @@ This peoject was just made by me for learning purposes and does not represent a 
 
 ## Demo
 
-![SecurePay Demo Screenshot]
+
 ![ss 1](images/image.png)
-![ss 2](<images/Screenshot 2025-06-09 182124.png>) 
-![ss 3](<images/Screenshot 2025-06-09 182029.png>) 
-![ss 4](<images/Screenshot 2025-06-09 182044.png>) 
-![ss 5](<images/Screenshot 2025-06-09 182109.png>)
+![ss 2](<images/Screenshot 2025-06-09 182029.png>) 
+![ss 3](<images/Screenshot 2025-06-09 182044.png>) 
+![ss 4](<images/Screenshot 2025-06-09 182109.png>)
+![ss 5](<images/Screenshot 2025-06-09 182124.png>) 
 
 ## Getting Started
 

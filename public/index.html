@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecurePay - FIDO2 + Stripe Payment System</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 2rem;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .step {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+            position: relative;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+        }
+
+        .btn-stripe {
+            background: linear-gradient(135deg, #635bff 0%, #4f46e5 100%);
+            color: white;
+        }
+
+        .security-icon {
+            text-align: center;
+            font-size: 3rem;
+            margin: 1rem 0;
+        }
+
+        .status {
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            text-align: center;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .payment-summary {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+        }
+
+        .payment-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.5rem 0;
+        }
+
+        .payment-row.total {
+            font-weight: bold;
+            font-size: 1.2rem;
+            border-top: 2px solid #dee2e6;
+            padding-top: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .yubikey-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 1rem;
+            background: #e8f4f8;
+            border-radius: 10px;
+            margin: 1rem 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e1e5e9;
+            border-radius: 2px;
+            margin: 1rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .stripe-element {
+            background: white;
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            margin: 0.5rem 0;
+        }
+
+        .stripe-element:focus-within {
+            border-color: #667eea;
+        }
+
+        .payment-methods {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .payment-method {
+            padding: 1rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .payment-method:hover {
+            border-color: #667eea;
+        }
+
+        .payment-method.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 SecurePay</h1>
+            <p>FIDO2-Secured Payment System with Stripe</p>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress"></div>
+        </div>
+
+        <!-- Step 1: Registration -->
+        <div class="step active" id="step-register">
+            <div class="security-icon">🔑</div>
+            <h2>Register Your Security Key</h2>
+            <p>First, let's register your YubiKey for secure authentication.</p>
+            
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" placeholder="Enter your username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" placeholder="Enter your email" required>
+            </div>
+            
+            <button class="btn btn-primary" onclick="registerCredential()">
+                Register YubiKey
+            </button>
+            
+            <div id="register-status"></div>
+        </div>
+
+        <!-- Step 2: Payment Setup -->
+        <div class="step" id="step-payment">
+            <div class="security-icon">💳</div>
+            <h2>Payment Details</h2>
+            
+            <div class="form-group">
+                <label for="amount">Amount ($):</label>
+                <input type="number" id="amount" placeholder="0.00" step="0.01" min="0.01" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <input type="text" id="description" placeholder="Payment description" required>
+            </div>
+
+            <div class="form-group">
+                <label for="customer-name">Customer Name:</label>
+                <input type="text" id="customer-name" placeholder="Full name" required>
+            </div>
+
+            <div class="form-group">
+                <label>Payment Method:</label>
+                <div class="payment-methods">
+                    <div class="payment-method selected" onclick="selectPaymentMethod('card')">
+                        <div>💳</div>
+                        <div>Credit Card</div>
+                    </div>
+                    <div class="payment-method" onclick="selectPaymentMethod('bank')">
+                        <div>🏦</div>
+                        <div>Bank Transfer</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="card-payment" class="payment-form">
+                <div class="form-group">
+                    <label>Card Information:</label>
+                    <div id="card-element" class="stripe-element"></div>
+                    <div id="card-errors" class="status error" style="display: none;"></div>
+                </div>
+            </div>
+
+            <div id="bank-payment" class="payment-form" style="display: none;">
+                <div class="form-group">
+                    <label>Bank Account (ACH):</label>
+                    <div id="bank-element" class="stripe-element"></div>
+                    <div id="bank-errors" class="status error" style="display: none;"></div>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" onclick="setupPayment()">
+                Review Payment
+            </button>
+        </div>
+
+        <!-- Step 3: Payment Confirmation -->
+        <div class="step" id="step-confirm">
+            <div class="security-icon">📋</div>
+            <h2>Confirm Payment</h2>
+            
+            <div class="payment-summary" id="payment-summary"></div>
+            
+            <div class="yubikey-indicator">
+                <span>🔐</span>
+                <span>Touch your YubiKey to authorize this payment</span>
+            </div>
+            
+            <button class="btn btn-success" onclick="authenticatePayment()" id="auth-btn">
+                Authenticate with YubiKey
+            </button>
+            
+            <div id="auth-status"></div>
+        </div>
+
+        <!-- Step 4: Stripe Processing -->
+        <div class="step" id="step-processing">
+            <div class="security-icon">⚡</div>
+            <h2>Processing Payment</h2>
+            
+            <div class="status info">
+                <div class="spinner"></div>
+                Processing your payment with Stripe...
+            </div>
+            
+            <div id="processing-status"></div>
+        </div>
+
+        <!-- Step 5: Payment Complete -->
+        <div class="step" id="step-complete">
+            <div class="security-icon">✅</div>
+            <h2>Payment Successful!</h2>
+            
+            <div class="status success">
+                Your payment has been processed successfully.
+            </div>
+            
+            <div id="transaction-details"></div>
+            
+            <button class="btn btn-primary" onclick="newPayment()">
+                Make Another Payment
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Replace with your Stripe publishable key
+        const STRIPE_PUBLISHABLE_KEY = 'pk_test_51RVY1YPKzR6fMjigLUbg60KCVqivp2C5Nw359joFVEuGjwQ98kfgcDqTdEcqbkM3ZUDappGTzTTN318K4yuwIen000BNAg5BO7';
+        const stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
+        
+        // Stripe Elements
+        let elements;
+        let cardElement;
+        let bankElement;
+        let selectedPaymentMethod = 'card';
+
+        // Application state
+        let users = {};
+        let currentUser = null;
+        let paymentData = {};
+        let currentStep = 1;
+        let clientSecret = null;
+
+        // Initialize Stripe Elements
+        function initializeStripeElements() {
+            elements = stripe.elements();
+            
+            // Card Element
+            cardElement = elements.create('card', {
+                style: {
+                    base: {
+                        fontSize: '16px',
+                        fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
+                        '::placeholder': {
+                            color: '#aab7c4',
+                        },
+                    },
+                },
+            });
+            cardElement.mount('#card-element');
+            cardElement.on('change', handleCardChange);
+
+            // Bank Account Element (ACH)
+            bankElement = elements.create('usBankAccount', {
+                accountHolderType: 'individual',
+            });
+            bankElement.mount('#bank-element');
+            bankElement.on('change', handleBankChange);
+        }
+
+        function handleCardChange(event) {
+            const displayError = document.getElementById('card-errors');
+            if (event.error) {
+                displayError.textContent = event.error.message;
+                displayError.style.display = 'block';
+            } else {
+                displayError.style.display = 'none';
+            }
+        }
+
+        function handleBankChange(event) {
+            const displayError = document.getElementById('bank-errors');
+            if (event.error) {
+                displayError.textContent = event.error.message;
+                displayError.style.display = 'block';
+            } else {
+                displayError.style.display = 'none';
+            }
+        }
+
+        function selectPaymentMethod(method) {
+            selectedPaymentMethod = method;
+            document.querySelectorAll('.payment-method').forEach(el => el.classList.remove('selected'));
+            event.target.closest('.payment-method').classList.add('selected');
+            
+            if (method === 'card') {
+                document.getElementById('card-payment').style.display = 'block';
+                document.getElementById('bank-payment').style.display = 'none';
+            } else {
+                document.getElementById('card-payment').style.display = 'none';
+                document.getElementById('bank-payment').style.display = 'block';
+            }
+        }
+
+        // Utility functions
+        function showStep(stepNum) {
+            document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
+            document.getElementById(`step-${getStepName(stepNum)}`).classList.add('active');
+            updateProgress(stepNum);
+            currentStep = stepNum;
+        }
+
+        function getStepName(num) {
+            const steps = ['register', 'payment', 'confirm', 'processing', 'complete'];
+            return steps[num - 1];
+        }
+
+        function updateProgress(step) {
+            const progress = (step / 5) * 100;
+            document.getElementById('progress').style.width = progress + '%';
+        }
+
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // FIDO2/WebAuthn functions
+        function checkWebAuthnSupport() {
+            if (!window.PublicKeyCredential) {
+                showStatus('register-status', 'WebAuthn is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Edge.', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        function generateRandomBytes(length) {
+            return crypto.getRandomValues(new Uint8Array(length));
+        }
+
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Register FIDO2 credential
+        async function registerCredential() {
+            if (!checkWebAuthnSupport()) return;
+
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+
+            if (!username || !email) {
+                showStatus('register-status', 'Please fill in all fields.', 'error');
+                return;
+            }
+
+            showStatus('register-status', '<div class="spinner"></div>Preparing registration...', 'info');
+
+            try {
+                const userId = generateRandomBytes(32);
+                const challenge = generateRandomBytes(32);
+
+                const publicKeyCredentialCreationOptions = {
+                    challenge: challenge,
+                    rp: {
+                        name: "SecurePay",
+                        id: window.location.hostname,
+                    },
+                    user: {
+                        id: userId,
+                        name: username,
+                        displayName: username,
+                    },
+                    pubKeyCredParams: [
+                        { alg: -7, type: "public-key" },
+                        { alg: -257, type: "public-key" }
+                    ],
+                    authenticatorSelection: {
+                        authenticatorAttachment: "cross-platform",
+                        userVerification: "preferred",
+                        requireResidentKey: false
+                    },
+                    timeout: 60000,
+                    attestation: "direct"
+                };
+
+                showStatus('register-status', '<div class="spinner"></div>Touch your YubiKey now...', 'info');
+
+                const credential = await navigator.credentials.create({
+                    publicKey: publicKeyCredentialCreationOptions
+                });
+
+                users[username] = {
+                    id: arrayBufferToBase64(userId),
+                    email: email,
+                    credentialId: arrayBufferToBase64(credential.rawId),
+                    publicKey: arrayBufferToBase64(credential.response.getPublicKey()),
+                    counter: 0
+                };
+
+                currentUser = username;
+                showStatus('register-status', 'Registration successful! YubiKey registered.', 'success');
+                
+                setTimeout(() => {
+                    showStep(2);
+                    initializeStripeElements();
+                }, 1500);
+
+            } catch (error) {
+                console.error('Registration failed:', error);
+                let errorMsg = 'Registration failed. ';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg += 'User cancelled or timeout occurred.';
+                } else if (error.name === 'SecurityError') {
+                    errorMsg += 'Security error - please use HTTPS.';
+                } else {
+                    errorMsg += error.message || 'Unknown error occurred.';
+                }
+                showStatus('register-status', errorMsg, 'error');
+            }
+        }
+
+        // Setup payment details
+        async function setupPayment() {
+            const amount = parseFloat(document.getElementById('amount').value);
+            const description = document.getElementById('description').value;
+            const customerName = document.getElementById('customer-name').value;
+
+            if (!amount || amount <= 0 || !description || !customerName) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+
+            try {
+                // Create Payment Intent with Stripe
+                const response = await createPaymentIntent({
+                    amount: Math.round(amount * 100), // Convert to cents
+                    currency: 'usd',
+                    description: description,
+                    customer_name: customerName,
+                    payment_method_type: selectedPaymentMethod === 'card' ? 'card' : 'us_bank_account'
+                });
+
+                if (!response.client_secret) {
+                    throw new Error('Failed to create payment intent');
+                }
+
+                clientSecret = response.client_secret;
+                
+                paymentData = {
+                    amount: amount,
+                    description: description,
+                    customerName: customerName,
+                    paymentMethod: selectedPaymentMethod,
+                    timestamp: new Date().toISOString(),
+                    transactionId: response.payment_intent_id || 'PI-' + Date.now()
+                };
+
+                // Display payment summary
+                document.getElementById('payment-summary').innerHTML = `
+                    <div class="payment-row">
+                        <span>Customer:</span>
+                        <span>${paymentData.customerName}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Description:</span>
+                        <span>${paymentData.description}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Payment Method:</span>
+                        <span>${paymentData.paymentMethod === 'card' ? 'Credit Card' : 'Bank Transfer'}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Date:</span>
+                        <span>${new Date().toLocaleDateString()}</span>
+                    </div>
+                    <div class="payment-row total">
+                        <span>Total Amount:</span>
+                        <span>$${paymentData.amount.toFixed(2)}</span>
+                    </div>
+                `;
+
+                showStep(3);
+
+            } catch (error) {
+                console.error('Payment setup failed:', error);
+                alert('Failed to setup payment: ' + error.message);
+            }
+        }
+
+        // Authenticate payment with FIDO2
+        async function authenticatePayment() {
+            if (!currentUser || !users[currentUser]) {
+                showStatus('auth-status', 'No registered user found. Please register first.', 'error');
+                return;
+            }
+
+            document.getElementById('auth-btn').disabled = true;
+            showStatus('auth-status', '<div class="spinner"></div>Preparing authentication...', 'info');
+
+            try {
+                const challenge = generateRandomBytes(32);
+                const user = users[currentUser];
+
+                const publicKeyCredentialRequestOptions = {
+                    challenge: challenge,
+                    allowCredentials: [{
+                        id: base64ToArrayBuffer(user.credentialId),
+                        type: 'public-key',
+                        transports: ['usb', 'nfc', 'ble']
+                    }],
+                    userVerification: 'preferred',
+                    timeout: 60000
+                };
+
+                showStatus('auth-status', '<div class="spinner"></div>Touch your YubiKey to authorize payment...', 'info');
+
+                const assertion = await navigator.credentials.get({
+                    publicKey: publicKeyCredentialRequestOptions
+                });
+
+                showStatus('auth-status', 'Authentication successful! Processing payment...', 'success');
+                
+                // Proceed to Stripe processing
+                setTimeout(() => {
+                    showStep(4);
+                    processStripePayment();
+                }, 1500);
+
+            } catch (error) {
+                console.error('Authentication failed:', error);
+                document.getElementById('auth-btn').disabled = false;
+                let errorMsg = 'Authentication failed. ';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg += 'User cancelled or timeout occurred.';
+                } else {
+                    errorMsg += error.message || 'Unknown error occurred.';
+                }
+                showStatus('auth-status', errorMsg, 'error');
+            }
+        }
+
+        // Process payment with Stripe
+        async function processStripePayment() {
+            try {
+                let result;
+                
+                if (selectedPaymentMethod === 'card') {
+                    result = await stripe.confirmCardPayment(clientSecret, {
+                        payment_method: {
+                            card: cardElement,
+                            billing_details: {
+                                name: paymentData.customerName,
+                            },
+                        }
+                    });
+                } else {
+                    result = await stripe.confirmUsBankAccountPayment(clientSecret, {
+                        payment_method: {
+                            us_bank_account: bankElement,
+                            billing_details: {
+                                name: paymentData.customerName,
+                            },
+                        }
+                    });
+                }
+
+                if (result.error) {
+                    throw new Error(result.error.message);
+                }
+
+                if (result.paymentIntent.status === 'succeeded') {
+                    showPaymentSuccess(result.paymentIntent);
+                } else if (result.paymentIntent.status === 'processing') {
+                    showPaymentProcessing(result.paymentIntent);
+                } else {
+                    throw new Error('Payment failed with status: ' + result.paymentIntent.status);
+                }
+
+            } catch (error) {
+                console.error('Stripe payment failed:', error);
+                showStatus('processing-status', 'Payment failed: ' + error.message, 'error');
+                setTimeout(() => showStep(3), 3000); // Go back to confirmation
+            }
+        }
+
+        function showPaymentSuccess(paymentIntent) {
+            document.getElementById('transaction-details').innerHTML = `
+                <div class="payment-summary">
+                    <div class="payment-row">
+                        <span>Payment ID:</span>
+                        <span>${paymentIntent.id}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Amount:</span>
+                        <span>$${(paymentIntent.amount / 100).toFixed(2)}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Customer:</span>
+                        <span>${paymentData.customerName}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Status:</span>
+                        <span style="color: green; font-weight: bold;">Completed</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Payment Method:</span>
+                        <span>${paymentIntent.payment_method_types[0]}</span>
+                    </div>
+                </div>
+            `;
+            showStep(5);
+        }
+
+        function showPaymentProcessing(paymentIntent) {
+            document.getElementById('transaction-details').innerHTML = `
+                <div class="payment-summary">
+                    <div class="payment-row">
+                        <span>Payment ID:</span>
+                        <span>${paymentIntent.id}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Amount:</span>
+                        <span>$${(paymentIntent.amount / 100).toFixed(2)}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span>Status:</span>
+                        <span style="color: orange; font-weight: bold;">Processing</span>
+                    </div>
+                    <div class="status info">
+                        Your payment is being processed. This may take a few business days for bank transfers.
+                    </div>
+                </div>
+            `;
+            showStep(5);
+        }
+
+        // Backend API calls
+        async function createPaymentIntent(data) {
+            try {
+                const response = await fetch('/api/create-payment-intent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create payment intent');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                throw error;
+            }
+        }
+
+        // Register user credential with backend
+        async function registerUserCredential(username, email, credentialData) {
+            try {
+                const response = await fetch('/api/register-credential', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        email: email,
+                        credential_data: credentialData
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to register credential');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Registration API Error:', error);
+                throw error;
+            }
+        }
+
+        // Verify authentication with backend
+        async function verifyAuthentication(username, authData) {
+            try {
+                const response = await fetch('/api/verify-authentication', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        authentication_data: authData
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to verify authentication');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Authentication API Error:', error);
+                throw error;
+            }
+        }
+
+        // Start new payment
+        function newPayment() {
+            paymentData = {};
+            clientSecret = null;
+            document.getElementById('amount').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('customer-name').value = '';
+            document.getElementById('auth-btn').disabled = false;
+            
+            // Reset Stripe elements
+            if (cardElement) {
+                cardElement.clear();
+            }
+            if (bankElement) {
+                bankElement.clear();
+            }
+            
+            showStep(2);
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            updateProgress(1);
+        });
+    </script>
+</body>
+</html>
